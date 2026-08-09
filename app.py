@@ -137,6 +137,38 @@ def _init_state():
 _init_state()
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOGIN
+# ══════════════════════════════════════════════════════════════════════════════
+
+def show_login():
+    if st.session_state.get("authenticated"):
+        return True
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style="text-align:center;padding:2rem 0 1rem 0;">
+            <h2>📄 DN Editor</h2>
+            <p style="color:#666;">Powered by Shivam</p>
+        </div>""", unsafe_allow_html=True)
+        st.markdown("#### 🔐 Login Required")
+        username = st.text_input("Username", placeholder="Enter username")
+        password = st.text_input("Password", type="password", placeholder="Enter password")
+        if st.button("Login", type="primary", use_container_width=True):
+            from auth import check_login
+            if check_login(username, password):
+                st.session_state["authenticated"] = True
+                st.session_state["logged_in_user"] = username
+                st.rerun()
+            else:
+                st.error("❌ Invalid username or password.")
+        st.markdown('<div style="text-align:center;margin-top:1rem;color:#999;font-size:0.8rem;">Contact admin to get access</div>', unsafe_allow_html=True)
+    return False
+
+if not show_login():
+    st.stop()
+
 # ══════════════════════════════════════════════════════════════════════════════
 # Helpers
 # ══════════════════════════════════════════════════════════════════════════════
@@ -601,13 +633,29 @@ if not dn:
 if doc_type == "ACK":
     render_ack_ui(dn, st.session_state.pdf_bytes, st.session_state.pdf_name, st.session_state.session_id)
     st.markdown("---")
-    st.caption("DN Editor · Powered by Shivam · Fully offline · No data leaves your machine")
+    user = st.session_state.get("logged_in_user", "")
+col_f1, col_f2 = st.columns([4, 1])
+with col_f1:
+    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {user}")
+with col_f2:
+    if st.button("🚪 Logout", use_container_width=True):
+        for k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
+            st.session_state.pop(k, None)
+        st.rerun()
     st.stop()
 
 if doc_type == "SCOOTSY":
     render_scootsy_ui(dn, st.session_state.pdf_bytes, st.session_state.pdf_name, st.session_state.session_id)
     st.markdown("---")
-    st.caption("DN Editor · Powered by Shivam · Fully offline · No data leaves your machine")
+    user = st.session_state.get("logged_in_user", "")
+col_f1, col_f2 = st.columns([4, 1])
+with col_f1:
+    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {user}")
+with col_f2:
+    if st.button("🚪 Logout", use_container_width=True):
+        for k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
+            st.session_state.pop(k, None)
+        st.rerun()
     st.stop()
 
 # ── DN Tabs ────────────────────────────────────────────────────────────────────
