@@ -174,12 +174,13 @@ if not show_login():
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _pdf_preview(pdf_bytes: bytes, height: int = 500):
-    b64 = base64.b64encode(pdf_bytes).decode()
-    st.markdown(
-        f'<iframe src="data:application/pdf;base64,{b64}" '
-        f'width="100%" height="{height}px" '
-        f'style="border:1px solid #dde3ed; border-radius:6px;"></iframe>',
-        unsafe_allow_html=True,
+    # Use Streamlit native viewer (works on Streamlit Cloud)
+    st.download_button(
+        label="👁️ View PDF (click to open)",
+        data=pdf_bytes,
+        file_name="preview.pdf",
+        mime="application/pdf",
+        use_container_width=True,
     )
 
 
