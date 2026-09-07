@@ -221,8 +221,35 @@ def _queue_igst_cess(
     # Find all bold centered lines on totals page (IGST/CESS section)
     igst_spans  = [s for s in spans if s.page == tp and "IGST" in s.text and "=" in s.text and "Total" not in s.text]
     tigst_spans = [s for s in spans if s.page == tp and "Total IGST" in s.text]
-    cess_spans  = [s for s in spans if s.page == tp and "CESS" in s.text and "Total" not in s.text and "ADDT" not in s.text]
-    tcess_spans = [s for s in spans if s.page == tp and "Total CESS" in s.text]
+    # Find CESS row by y-position grouping
+    _p = [s for s in spans if s.page == tp and s.bbox[1] > 590 and s.bbox[1] < 685]
+    _cess_anchor = [s for s in _p if s.text.strip() == "CESS"]
+    if _cess_anchor:
+        _ry = (_cess_anchor[0].bbox[1]+_cess_anchor[0].bbox[3])/2
+        _cess_row = [s for s in _p if abs((s.bbox[1]+s.bbox[3])/2-_ry)<8]
+        class _FS:
+            def __init__(self,b): self.bbox=b
+        _cx0=min(s.bbox[0] for s in _cess_row)-3
+        _cy0=min(s.bbox[1] for s in _cess_row)-2
+        _cx1=max(s.bbox[2] for s in _cess_row)+10
+        _cy1=max(s.bbox[3] for s in _cess_row)+2
+        cess_spans = [_FS((_cx0,_cy0,_cx1,_cy1))]
+    else:
+        cess_spans = []
+    # Find Total CESS row by y-position
+    _tcess_anchor = [s for s in _p if s.text.strip() == "Total"]
+    tcess_spans = []
+    for _ts in _tcess_anchor:
+        _ry = (_ts.bbox[1]+_ts.bbox[3])/2
+        _row = [s for s in _p if abs((s.bbox[1]+s.bbox[3])/2-_ry)<8]
+        if any(s.text.strip()=="CESS" for s in _row) and not any("ADDT" in s.text for s in _row):
+            class _FST:
+                def __init__(self,b): self.bbox=b
+            tcess_spans = [_FST((min(s.bbox[0] for s in _row)-3,
+                                 min(s.bbox[1] for s in _row)-2,
+                                 max(s.bbox[2] for s in _row)+10,
+                                 max(s.bbox[3] for s in _row)+2))]
+            break
     addt_spans  = [s for s in spans if s.page == tp and "ADDT_CESS" in s.text]
 
     import math
@@ -254,10 +281,41 @@ def _queue_igst_cess(
 
     else:
         # CGST + SGST breakdown
-        cgst_spans  = [s for s in spans if s.page == tp and "CGST" in s.text and "=" in s.text and "Total" not in s.text]
-        tcgst_spans = [s for s in spans if s.page == tp and "Total CGST" in s.text]
-        sgst_spans  = [s for s in spans if s.page == tp and "SGST" in s.text and "=" in s.text and "Total" not in s.text]
-        tsgst_spans = [s for s in spans if s.page == tp and "Total SGST" in s.text]
+        # CGST/SGST spans may be split - find by label only (not requiring = in same span)
+        # Find rows by y-position grouping (spans are split across multiple words)
+        _bp = [s for s in spans if s.page == tp and s.bbox[1] > 590 and s.bbox[1] < 685]
+
+        def _find_row(label):
+            anchors = [s for s in _bp if s.text.strip() == label]
+            if not anchors:
+                return None
+            ry = (anchors[0].bbox[1] + anchors[0].bbox[3]) / 2
+            row = [s for s in _bp if abs((s.bbox[1]+s.bbox[3])/2 - ry) < 8]
+            class FS:
+                def __init__(self, b): self.bbox = b
+            return FS((min(s.bbox[0] for s in row)-3, min(s.bbox[1] for s in row)-2,
+                       max(s.bbox[2] for s in row)+10, max(s.bbox[3] for s in row)+2))
+
+        def _find_total_row(label):
+            for ts in [s for s in _bp if s.text.strip() == "Total"]:
+                ry = (ts.bbox[1] + ts.bbox[3]) / 2
+                row = [s for s in _bp if abs((s.bbox[1]+s.bbox[3])/2 - ry) < 8]
+                if any(s.text.strip() == label for s in row):
+                    class FS:
+                        def __init__(self, b): self.bbox = b
+                    return FS((min(s.bbox[0] for s in row)-3, min(s.bbox[1] for s in row)-2,
+                               max(s.bbox[2] for s in row)+10, max(s.bbox[3] for s in row)+2))
+            return None
+
+        cgst_s  = _find_row("CGST")
+        tcgst_s = _find_total_row("CGST")
+        sgst_s  = _find_row("SGST")
+        tsgst_s = _find_total_row("SGST")
+        cgst_spans  = [cgst_s]  if cgst_s  else []
+        tcgst_spans = [tcgst_s] if tcgst_s else []
+        sgst_spans  = [sgst_s]  if sgst_s  else []
+        tsgst_spans = [tsgst_s] if tsgst_s else []
+
 
         cgst_parts = []
         cgst_total = 0.0
@@ -274,23 +332,27 @@ def _queue_igst_cess(
         new_sgst_line  = "SGST = " + ", ".join(cgst_parts) + ","
         new_tsgst_line = f"Total SGST = {cgst_total:.2f}"
 
-        if cgst_spans:
-            s = cgst_spans[0]
-            # Redact entire line width
-            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
-            queue(tp, full_bbox, _insert_centered, pg, new_cgst_line, s.bbox[3]-1.5, True)
-        if tcgst_spans:
-            s = tcgst_spans[0]
-            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
-            queue(tp, full_bbox, _insert_centered, pg, new_tcgst_line, s.bbox[3]-1.5, True)
-        if sgst_spans:
-            s = sgst_spans[0]
-            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
-            queue(tp, full_bbox, _insert_centered, pg, new_sgst_line, s.bbox[3]-1.5, True)
-        if tsgst_spans:
-            s = tsgst_spans[0]
-            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
-            queue(tp, full_bbox, _insert_centered, pg, new_tsgst_line, s.bbox[3]-1.5, True)
+        def redact_full_line(span_list, new_text):
+            if not span_list:
+                return
+            s = span_list[0]
+            row_y = (s.bbox[1] + s.bbox[3]) / 2
+            row_spans = [sp for sp in spans if sp.page == tp
+                        and abs((sp.bbox[1]+sp.bbox[3])/2 - row_y) < 8]
+            if row_spans:
+                x0 = min(sp.bbox[0] for sp in row_spans) - 3
+                y0 = min(sp.bbox[1] for sp in row_spans) - 2
+                x1 = max(sp.bbox[2] for sp in row_spans) + 10
+                y1 = max(sp.bbox[3] for sp in row_spans) + 2
+                full_bbox = (x0, y0, x1, y1)
+            else:
+                full_bbox = (s.bbox[0]-3, s.bbox[1]-2, s.bbox[2]+100, s.bbox[3]+2)
+            queue(tp, full_bbox, _insert_centered, pg, new_text, s.bbox[3]-1.5, True)
+
+        redact_full_line(cgst_spans,  new_cgst_line)
+        redact_full_line(tcgst_spans, new_tcgst_line)
+        redact_full_line(sgst_spans,  new_sgst_line)
+        redact_full_line(tsgst_spans, new_tsgst_line)
 
     # CESS lines — recalculate based on new sub total
     new_sub = round(sum(
@@ -299,8 +361,40 @@ def _queue_igst_cess(
     new_cess_line  = f"CESS = {new_sub} * 0.0% = 0.00,"
     new_tcess_line = "Total CESS = 0.00"
 
+    def _full_row_bbox(span_list):
+        """Get bbox covering full row width of all spans at same y level."""
+        if not span_list:
+            return None
+        s = span_list[0]
+        row_y = (s.bbox[1] + s.bbox[3]) / 2
+        row = [sp for sp in spans if sp.page == tp
+               and abs((sp.bbox[1]+sp.bbox[3])/2 - row_y) < 6]
+        x0 = min(sp.bbox[0] for sp in row) - 5 if row else s.bbox[0]-5
+        y0 = min(sp.bbox[1] for sp in row) - 2 if row else s.bbox[1]-2
+        x1 = max(sp.bbox[2] for sp in row) + 15 if row else s.bbox[2]+50
+        y1 = max(sp.bbox[3] for sp in row) + 2 if row else s.bbox[3]+2
+        return (x0, y0, x1, y1)
+
+    def _row_full_bbox(label_spans):
+        if not label_spans:
+            return None
+        s = label_spans[0]
+        row_y = (s.bbox[1] + s.bbox[3]) / 2
+        # Get ALL spans on same row (within 8pts vertically)
+        row = [sp for sp in spans if sp.page == tp
+               and abs((sp.bbox[1]+sp.bbox[3])/2 - row_y) < 8]
+        if not row:
+            return s.bbox
+        return (
+            min(sp.bbox[0] for sp in row) - 3,
+            min(sp.bbox[1] for sp in row) - 2,
+            max(sp.bbox[2] for sp in row) + 10,
+            max(sp.bbox[3] for sp in row) + 2
+        )
+
     if cess_spans:
         s = cess_spans[0]
+        # bbox already covers full row width
         queue(tp, s.bbox, _insert_centered, pg, new_cess_line, s.bbox[3]-1.5, True)
 
     if tcess_spans:
