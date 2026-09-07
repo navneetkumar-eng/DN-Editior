@@ -633,28 +633,28 @@ if not dn:
 if doc_type == "ACK":
     render_ack_ui(dn, st.session_state.pdf_bytes, st.session_state.pdf_name, st.session_state.session_id)
     st.markdown("---")
-    user = st.session_state.get("logged_in_user", "")
-col_f1, col_f2 = st.columns([4, 1])
-with col_f1:
-    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {user}")
-with col_f2:
+    _user = st.session_state.get("logged_in_user", "")
+_c1, _c2 = st.columns([4, 1])
+with _c1:
+    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {_user}")
+with _c2:
     if st.button("🚪 Logout", use_container_width=True):
-        for k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
-            st.session_state.pop(k, None)
+        for _k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
+            st.session_state.pop(_k, None)
         st.rerun()
     st.stop()
 
 if doc_type == "SCOOTSY":
     render_scootsy_ui(dn, st.session_state.pdf_bytes, st.session_state.pdf_name, st.session_state.session_id)
     st.markdown("---")
-    user = st.session_state.get("logged_in_user", "")
-col_f1, col_f2 = st.columns([4, 1])
-with col_f1:
-    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {user}")
-with col_f2:
+    _user = st.session_state.get("logged_in_user", "")
+_c1, _c2 = st.columns([4, 1])
+with _c1:
+    st.caption(f"DN Editor · Powered by Shivam · Logged in as: {_user}")
+with _c2:
     if st.button("🚪 Logout", use_container_width=True):
-        for k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
-            st.session_state.pop(k, None)
+        for _k in ["authenticated","logged_in_user","dn","pdf_bytes","pdf_name","generated_pdf"]:
+            st.session_state.pop(_k, None)
         st.rerun()
     st.stop()
 
