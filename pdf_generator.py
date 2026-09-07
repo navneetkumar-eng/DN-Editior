@@ -225,7 +225,7 @@ def _queue_igst_cess(
     tcess_spans = [s for s in spans if s.page == tp and "Total CESS" in s.text]
     addt_spans  = [s for s in spans if s.page == tp and "ADDT_CESS" in s.text]
 
-    # Build new IGST breakdown — group by GST rate
+    import math
     from collections import defaultdict
     gst_groups = defaultdict(float)
     for r in edited_rows:
@@ -233,28 +233,64 @@ def _queue_igst_cess(
         gst = float(r.get('gst_pct', 0))
         gst_groups[gst] += sub
 
-    # Format: IGST = <sub1> * <gst>% = <amt1>, <sub2> * <gst>% = <amt2>,
-    igst_parts = []
-    igst_total = 0.0
-    for gst_pct, sub_sum in sorted(gst_groups.items()):
-        sub_sum  = round(sub_sum, 2)
-        amt      = round(sub_sum * gst_pct / 100, 2)
-        igst_total += amt
-        igst_parts.append(f"{sub_sum} * {gst_pct}% = {amt:.2f}")
+    if dn.gst_type == "IGST":
+        igst_parts = []
+        igst_total = 0.0
+        for gst_pct, sub_sum in sorted(gst_groups.items()):
+            sub_sum = round(sub_sum, 2)
+            amt     = round(math.floor(sub_sum * gst_pct / 100 * 100) / 100, 2)
+            igst_total += amt
+            igst_parts.append(f"{sub_sum} * {gst_pct}% = {amt:.2f}")
+        igst_total = round(igst_total, 2)
+        new_igst_line  = "IGST = " + ", ".join(igst_parts) + ","
+        new_tigst_line = f"Total IGST = {igst_total:.2f}"
 
-    igst_total = round(igst_total, 2)
-    new_igst_line  = "IGST = " + ", ".join(igst_parts) + ","
-    new_tigst_line = f"Total IGST = {igst_total:.2f}"
+        if igst_spans:
+            s = igst_spans[0]
+            queue(tp, s.bbox, _insert_centered, pg, new_igst_line, s.bbox[3]-1.5, True)
+        if tigst_spans:
+            s = tigst_spans[0]
+            queue(tp, s.bbox, _insert_centered, pg, new_tigst_line, s.bbox[3]-1.5, True)
 
-    # Redact and rewrite IGST line
-    if igst_spans:
-        s = igst_spans[0]
-        queue(tp, s.bbox, _insert_centered, pg, new_igst_line, s.bbox[3]-1.5, True)
+    else:
+        # CGST + SGST breakdown
+        cgst_spans  = [s for s in spans if s.page == tp and "CGST" in s.text and "=" in s.text and "Total" not in s.text]
+        tcgst_spans = [s for s in spans if s.page == tp and "Total CGST" in s.text]
+        sgst_spans  = [s for s in spans if s.page == tp and "SGST" in s.text and "=" in s.text and "Total" not in s.text]
+        tsgst_spans = [s for s in spans if s.page == tp and "Total SGST" in s.text]
 
-    # Redact and rewrite Total IGST line
-    if tigst_spans:
-        s = tigst_spans[0]
-        queue(tp, s.bbox, _insert_centered, pg, new_tigst_line, s.bbox[3]-1.5, True)
+        cgst_parts = []
+        cgst_total = 0.0
+        for gst_pct, sub_sum in sorted(gst_groups.items()):
+            sub_sum  = round(sub_sum, 2)
+            half_pct = gst_pct / 2
+            amt      = round(math.floor(sub_sum * half_pct / 100 * 100) / 100, 2)
+            cgst_total += amt
+            cgst_parts.append(f"{sub_sum} * {half_pct}% = {amt:.2f}")
+        cgst_total = round(cgst_total, 2)
+
+        new_cgst_line  = "CGST = " + ", ".join(cgst_parts) + ","
+        new_tcgst_line = f"Total CGST = {cgst_total:.2f}"
+        new_sgst_line  = "SGST = " + ", ".join(cgst_parts) + ","
+        new_tsgst_line = f"Total SGST = {cgst_total:.2f}"
+
+        if cgst_spans:
+            s = cgst_spans[0]
+            # Redact entire line width
+            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
+            queue(tp, full_bbox, _insert_centered, pg, new_cgst_line, s.bbox[3]-1.5, True)
+        if tcgst_spans:
+            s = tcgst_spans[0]
+            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
+            queue(tp, full_bbox, _insert_centered, pg, new_tcgst_line, s.bbox[3]-1.5, True)
+        if sgst_spans:
+            s = sgst_spans[0]
+            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
+            queue(tp, full_bbox, _insert_centered, pg, new_sgst_line, s.bbox[3]-1.5, True)
+        if tsgst_spans:
+            s = tsgst_spans[0]
+            full_bbox = (s.bbox[0]-5, s.bbox[1]-2, 560, s.bbox[3]+2)
+            queue(tp, full_bbox, _insert_centered, pg, new_tsgst_line, s.bbox[3]-1.5, True)
 
     # CESS lines — recalculate based on new sub total
     new_sub = round(sum(
